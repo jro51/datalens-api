@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -11,7 +11,7 @@ class Dataset(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     filename: Mapped[str] = mapped_column(String(255))
-    stored_name: Mapped[str] = mapped_column(String(64), unique=True)
+    content: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)
     rows: Mapped[int]
     columns: Mapped[int]
     size_bytes: Mapped[int]

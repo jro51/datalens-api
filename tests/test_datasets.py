@@ -1,13 +1,12 @@
-from pathlib import Path
-
 from app.config import settings
-from tests.conftest import SAMPLE_CSV
+from tests.conftest import ID_CSV, SAMPLE_CSV
 
 
 def test_upload_returns_metadata(uploaded):
     assert uploaded["filename"] == "ventas.csv"
     assert uploaded["rows"] == 4
     assert uploaded["columns"] == 4
+    assert "content" not in uploaded
 
 
 def test_upload_rejects_non_csv_extension(client):
@@ -31,6 +30,16 @@ def test_list_datasets(client, uploaded):
 
     assert response.status_code == 200
     assert [d["id"] for d in response.json()] == [uploaded["id"]]
+
+
+def test_list_datasets_supports_pagination(client):
+    for name in ("a.csv", "b.csv", "c.csv"):
+        client.post("/datasets", files={"file": (name, SAMPLE_CSV)})
+
+    page = client.get("/datasets", params={"skip": 1, "limit": 1}).json()
+
+    assert len(page) == 1
+    assert page[0]["filename"] == "b.csv"
 
 
 def test_summary(client, uploaded):
@@ -73,14 +82,22 @@ def test_chart_invalid_column(client, uploaded):
         assert response.status_code == 422
 
 
-def test_delete_removes_record_and_file(client, uploaded):
-    files_before = list(Path(settings.upload_dir).glob("*.csv"))
-    assert len(files_before) == 1
-
+def test_delete_removes_dataset(client, uploaded):
     assert client.delete(f"/datasets/{uploaded['id']}").status_code == 204
     assert client.get(f"/datasets/{uploaded['id']}/summary").status_code == 404
-    assert list(Path(settings.upload_dir).glob("*.csv")) == []
+    assert client.get("/datasets").json() == []
 
 
 def test_delete_not_found(client):
     assert client.delete("/datasets/999").status_code == 404
+
+
+def test_identifier_columns_are_flagged_in_summary_and_excluded_from_correlations(client):
+    upload = client.post("/datasets", files={"file": ("ids.csv", ID_CSV)}).json()
+
+    summary = client.get(f"/datasets/{upload['id']}/summary").json()
+    assert summary["stats"]["Index"]["identifier"] is True
+    assert "mean" not in summary["stats"]["Index"]
+
+    correlations = client.get(f"/datasets/{upload['id']}/correlations").json()
+    assert correlations["columns"] == ["Price", "Stock"]

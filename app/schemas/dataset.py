@@ -24,6 +24,7 @@ class ColumnStats(BaseModel):
     max: float | None = None
     std: float | None = None
     top: str | None = None
+    identifier: bool | None = None
 
 
 class SummaryOut(BaseModel):

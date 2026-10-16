@@ -1,7 +1,10 @@
 import io
+import re
 
 import pandas as pd
 from matplotlib.figure import Figure
+
+IDENTIFIER_HINTS = {"id", "index", "ean", "sku", "uuid", "code", "isbn", "upc"}
 
 
 class AnalysisError(ValueError):
@@ -29,8 +32,26 @@ def _to_python(value):
     return round(value, 4) if isinstance(value, float) else value
 
 
+def _is_identifier(name: str) -> bool:
+    """Detecta columnas tipo id/index/ean por su nombre (también camelCase)."""
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", str(name))
+    tokens = re.split(r"[^a-zA-Z0-9]+", spaced.lower())
+    return any(token in IDENTIFIER_HINTS for token in tokens)
+
+
+def _identifier_columns(df: pd.DataFrame) -> set:
+    return {col for col in df.columns if _is_identifier(col)}
+
+
+def _numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Columnas numéricas con sentido estadístico (sin identificadores)."""
+    numeric = df.select_dtypes(include="number")
+    return numeric.drop(columns=list(_identifier_columns(numeric)))
+
+
 def summarize(df: pd.DataFrame) -> dict:
-    numeric_cols = set(df.select_dtypes(include="number").columns)
+    identifiers = _identifier_columns(df)
+    numeric_cols = set(_numeric_columns(df).columns)
     stats = {}
 
     for col in df.columns:
@@ -40,7 +61,9 @@ def summarize(df: pd.DataFrame) -> dict:
             "nulls": int(series.isna().sum()),
             "unique": int(series.nunique()),
         }
-        if col in numeric_cols:
+        if col in identifiers:
+            info["identifier"] = True
+        elif col in numeric_cols:
             info.update(
                 mean=_to_python(series.mean()),
                 median=_to_python(series.median()),
@@ -57,7 +80,7 @@ def summarize(df: pd.DataFrame) -> dict:
 
 
 def correlations(df: pd.DataFrame) -> dict:
-    numeric = df.select_dtypes(include="number")
+    numeric = _numeric_columns(df)
     if numeric.shape[1] < 2:
         raise AnalysisError("Se necesitan al menos 2 columnas numéricas.")
 
@@ -69,9 +92,11 @@ def correlations(df: pd.DataFrame) -> dict:
 
 
 def histogram_png(df: pd.DataFrame, column: str, bins: int = 10) -> bytes:
-    numeric = df.select_dtypes(include="number")
+    numeric = _numeric_columns(df)
     if column not in numeric.columns:
-        raise AnalysisError(f"La columna '{column}' no existe o no es numérica.")
+        raise AnalysisError(
+            f"La columna '{column}' no existe, no es numérica o es un identificador."
+        )
 
     data = df[column].dropna()
     if data.empty:

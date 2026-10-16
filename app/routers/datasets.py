@@ -1,3 +1,4 @@
+import logging
 import os
 
 import pandas as pd
@@ -9,7 +10,9 @@ from app.config import settings
 from app.database import get_db
 from app.models import Dataset
 from app.schemas.dataset import CorrelationOut, DatasetOut, SummaryOut
-from app.services import analysis, storage
+from app.services import analysis
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/datasets", tags=["Datasets"])
 
@@ -22,10 +25,7 @@ def _get_dataset_or_404(db: Session, dataset_id: int) -> Dataset:
 
 
 def _load_dataframe(dataset: Dataset) -> pd.DataFrame:
-    path = storage.get_path(dataset.stored_name)
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="El archivo del dataset ya no existe.")
-    return analysis.parse_csv(path.read_bytes())
+    return analysis.parse_csv(dataset.content)
 
 
 @router.post("", response_model=DatasetOut, status_code=201)
@@ -42,27 +42,20 @@ def upload_dataset(file: UploadFile, db: Session = Depends(get_db)):
             detail=f"El archivo supera el límite de {settings.max_upload_mb} MB.",
         )
 
-    try:
-        df = analysis.parse_csv(content)
-    except analysis.AnalysisError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    df = analysis.parse_csv(content)  # AnalysisError -> 422 (manejador global)
 
-    stored_name = storage.save_file(content)
-    try:
-        dataset = Dataset(
-            filename=filename,
-            stored_name=stored_name,
-            rows=int(len(df)),
-            columns=int(df.shape[1]),
-            size_bytes=len(content),
-        )
-        db.add(dataset)
-        db.commit()
-        db.refresh(dataset)
-    except Exception:
-        db.rollback()
-        storage.delete_file(stored_name)
-        raise
+    dataset = Dataset(
+        filename=filename,
+        content=content,
+        rows=int(len(df)),
+        columns=int(df.shape[1]),
+        size_bytes=len(content),
+    )
+    db.add(dataset)
+    db.commit()
+    db.refresh(dataset)
+
+    logger.info("Dataset %s subido: %s (%s filas)", dataset.id, filename, dataset.rows)
     return dataset
 
 
@@ -85,10 +78,7 @@ def dataset_summary(dataset_id: int, db: Session = Depends(get_db)):
 @router.get("/{dataset_id}/correlations", response_model=CorrelationOut)
 def dataset_correlations(dataset_id: int, db: Session = Depends(get_db)):
     dataset = _get_dataset_or_404(db, dataset_id)
-    try:
-        return analysis.correlations(_load_dataframe(dataset))
-    except analysis.AnalysisError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return analysis.correlations(_load_dataframe(dataset))
 
 
 @router.get("/{dataset_id}/chart")
@@ -99,17 +89,14 @@ def dataset_chart(
     db: Session = Depends(get_db),
 ):
     dataset = _get_dataset_or_404(db, dataset_id)
-    try:
-        png = analysis.histogram_png(_load_dataframe(dataset), column, bins)
-    except analysis.AnalysisError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    png = analysis.histogram_png(_load_dataframe(dataset), column, bins)
     return Response(content=png, media_type="image/png")
 
 
 @router.delete("/{dataset_id}", status_code=204)
 def delete_dataset(dataset_id: int, db: Session = Depends(get_db)):
     dataset = _get_dataset_or_404(db, dataset_id)
-    storage.delete_file(dataset.stored_name)
     db.delete(dataset)
     db.commit()
+    logger.info("Dataset %s eliminado", dataset_id)
     return Response(status_code=204)

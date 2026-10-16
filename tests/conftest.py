@@ -4,7 +4,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.config import settings
 from app.database import Base, get_db
 from app.main import app
 
@@ -16,12 +15,17 @@ SAMPLE_CSV = (
     b"Pedro,40,30.0,Lima\n"
 )
 
+ID_CSV = (
+    b"Index,Customer ID,Price,Stock\n"
+    b"1,1001,10.5,5\n"
+    b"2,1002,20.0,8\n"
+    b"3,1003,15.0,2\n"
+)
+
 
 @pytest.fixture
-def client(tmp_path, monkeypatch):
-    """Cliente con BD SQLite en memoria y carpeta de subidas temporal."""
-    monkeypatch.setattr(settings, "upload_dir", str(tmp_path / "uploads"))
-
+def client():
+    """Cliente con una base de datos SQLite en memoria, aislada por prueba."""
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
@@ -44,8 +48,6 @@ def client(tmp_path, monkeypatch):
 @pytest.fixture
 def uploaded(client):
     """Sube el CSV de ejemplo y devuelve la respuesta JSON."""
-    response = client.post(
-        "/datasets", files={"file": ("ventas.csv", SAMPLE_CSV, "text/csv")}
-    )
+    response = client.post("/datasets", files={"file": ("ventas.csv", SAMPLE_CSV, "text/csv")})
     assert response.status_code == 201
     return response.json()

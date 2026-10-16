@@ -1,0 +1,60 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Lint y pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Pruebas con cobertura mínima de 80%
+        run: pytest --cov=app --cov-report=term-missing --cov-fail-under=80
+
+  docker:
+    name: Imagen Docker
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir imagen
+        run: docker build -t datalens-api .
+
+      - name: Prueba de humo (el contenedor responde en /health)
+        run: |
+          docker run -d --name api -p 8000:8000 datalens-api
+          curl -fsS --retry 15 --retry-delay 2 --retry-connrefused http://localhost:8000/health
+          docker logs api
+
+  deploy:
+    name: Despliegue
+    needs: [test, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar despliegue en Render
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK no está configurado: se omite el despliegue."
+            exit 0
+          fi
+          curl -fsS -X POST "$DEPLOY_HOOK"
