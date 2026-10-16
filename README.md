@@ -1,4 +1,4 @@
-# 📊 DataLens API
+# DataLens API
 
 API REST construida con **FastAPI** que recibe archivos CSV y devuelve automáticamente un análisis de los datos: estadísticas descriptivas, valores nulos, correlaciones y gráficos.
 
@@ -6,12 +6,12 @@ API REST construida con **FastAPI** que recibe archivos CSV y devuelve automáti
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)
 
-🔗 **Demo en vivo (Swagger):** `TODO: https://tu-app.onrender.com/docs`
+**Demo en vivo (Swagger):** `TODO: https://datalens-api-qv3n.onrender.com/docs`
 > El servicio gratuito se "duerme" tras unos minutos sin tráfico; la primera petición puede tardar cerca de un minuto en responder.
 
 ---
 
-## 🎯 Objetivo
+## - Objetivo
 
 Proyecto personal para practicar y demostrar un ciclo completo de desarrollo backend en Python:
 
@@ -23,7 +23,7 @@ Proyecto personal para practicar y demostrar un ciclo completo de desarrollo bac
 
 ---
 
-## ✨ Funcionalidades
+## - Funcionalidades
 
 - Subida y validación de archivos CSV (extensión, tamaño y contenido).
 - Resumen por columna: tipo, nulos, valores únicos, media, mediana, mínimo, máximo y desviación estándar.
@@ -35,7 +35,7 @@ Proyecto personal para practicar y demostrar un ciclo completo de desarrollo bac
 
 ---
 
-## 🧰 Stack tecnológico
+## - Stack tecnológico
 
 | Área | Tecnología |
 |------|-----------|
@@ -51,7 +51,7 @@ Proyecto personal para practicar y demostrar un ciclo completo de desarrollo bac
 
 ---
 
-## 🏗️ Arquitectura
+## - Arquitectura
 
 ```mermaid
 flowchart LR
@@ -106,7 +106,7 @@ curl "http://localhost:8000/datasets/1/chart?column=precio" --output precio.png
 
 ---
 
-## 🚀 Ejecución local
+## - Ejecución local
 
 ### Con entorno virtual (SQLite)
 
@@ -132,7 +132,7 @@ docker compose up --build
 
 ---
 
-## 🧪 Pruebas y calidad
+## - Pruebas y calidad
 
 ```bash
 pytest --cov=app --cov-report=term-missing
@@ -143,7 +143,7 @@ Se prueban la lógica de análisis (casos normales, nulos, CSV vacío o malforma
 
 ---
 
-## 🔄 CI/CD
+## - CI/CD
 
 `.github/workflows/ci.yml` se ejecuta en cada push y pull request:
 
@@ -153,19 +153,7 @@ Se prueban la lógica de análisis (casos normales, nulos, CSV vacío o malforma
 
 ---
 
-## ☁️ Despliegue (Render + Neon)
-
-1. **Base de datos:** crea un proyecto en [Neon](https://neon.com) y copia la cadena de conexión (`postgresql://...?sslmode=require`).
-2. **Render:** *New → Web Service* → conecta el repositorio → *Runtime: Docker* → instancia *Free*.
-   - Variables de entorno: `DATABASE_URL` (la de Neon), `ENVIRONMENT=production`, `MAX_UPLOAD_MB=5`.
-   - *Health Check Path:* `/health`.
-3. **Despliegue controlado por CI:** en Render pon *Auto-Deploy* en *Off*, copia el *Deploy Hook* y guárdalo en GitHub como secreto `RENDER_DEPLOY_HOOK` (*Settings → Secrets and variables → Actions*). Así solo se despliega código que pasó las pruebas.
-
-Los límites de los planes gratuitos cambian con el tiempo: confírmalos en la documentación oficial de cada proveedor.
-
----
-
-## 🧠 Decisiones técnicas
+## - Decisiones técnicas
 
 - **Capa de servicios separada de FastAPI:** `analysis.py` no conoce HTTP, así que se prueba de forma aislada y rápida.
 - **El CSV se guarda en la base de datos (`bytea`) y no en disco:** los servicios gratuitos en la nube tienen sistema de archivos efímero; guardar el contenido en PostgreSQL evita perder datos al reiniciar. La columna es *deferred*, por lo que el listado no carga los archivos.
@@ -178,21 +166,5 @@ Los límites de los planes gratuitos cambian con el tiempo: confírmalos en la d
 
 ---
 
-## 🗺️ Mejoras futuras
 
-- [ ] Migraciones con Alembic (hoy las tablas se crean al arrancar).
-- [ ] Autenticación JWT y datasets por usuario.
-- [ ] Soporte para archivos Excel y análisis de columnas de fechas.
-- [ ] Procesamiento asíncrono para archivos muy grandes.
 
----
-
-## 👤 Autor
-
-**TODO: Tu nombre**
-- GitHub: [@jro51](https://github.com/jro51)
-- LinkedIn: TODO
-
-## 📄 Licencia
-
-MIT
